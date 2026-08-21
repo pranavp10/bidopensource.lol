@@ -170,14 +170,39 @@ export default function Home() {
           if (typeof window !== "undefined") {
             const params = new URLSearchParams(window.location.search);
             const status = params.get("status");
+            const paymentId = params.get("payment_id");
+            const returnedUrl = params.get("url");
+
             if (status === "failed") {
               setError("Payment was cancelled or failed on Dodo Payments.");
               setPaymentSuccess(false);
-            } else if (params.get("payment") === "success" && status !== "failed") {
+            } else if (params.get("payment") === "success" || status === "succeeded" || paymentId) {
               setPaymentSuccess(true);
+              if (paymentId) {
+                // Instantly verify with backend to ensure DB is updated
+                fetch("/api/checkout/verify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ payment_id: paymentId, url: returnedUrl }),
+                })
+                  .then((r) => r.json())
+                  .then((verResult) => {
+                    if (verResult.bids) {
+                      setBids(verResult.bids);
+                      if (verResult.bids.length > 0) {
+                        setBidAmount(verResult.bids[0].amount + 1);
+                      }
+                    }
+                    if (verResult.activities) {
+                      setActivities(verResult.activities);
+                    }
+                  })
+                  .catch((e) => console.warn("Auto-verify failed:", e));
+              }
             }
           }
           setLoading(false);
+
         }
       } catch (err) {
         if (!ignore) {
