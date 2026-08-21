@@ -410,7 +410,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState("");
-  const [bidAmount, setBidAmount] = useState(10001);
+  const [bidAmount, setBidAmount] = useState(1);
   const [activeTab, setActiveTab] = useState("Leaderboard");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -842,7 +842,7 @@ export default function Home() {
                   <button
                     id="bid-decrease"
                     onClick={() =>
-                      setBidAmount((v) => Math.max((topBid?.amount ?? 0) + 1, v - 100))
+                      setBidAmount((v) => Math.max(1, v - 1))
                     }
                     style={{
                       width: 26,
@@ -882,7 +882,7 @@ export default function Home() {
                   </span>
                   <button
                     id="bid-increase"
-                    onClick={() => setBidAmount((v) => v + 100)}
+                    onClick={() => setBidAmount((v) => v + 1)}
                     style={{
                       width: 26,
                       height: 26,
