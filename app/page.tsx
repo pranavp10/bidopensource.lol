@@ -681,29 +681,56 @@ export default function Home() {
 
                   {/* Bid Amount Input with Stepper */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    <label htmlFor="bid-amount-input" className="block text-xs font-semibold text-slate-400 mb-1">
                       Bid Amount ($ USD)
                     </label>
-                    <div className="flex items-center bg-[#080d15] border border-[#1f2b40] focus-within:border-amber-400 rounded-xl px-2 py-1.5">
+                    <div className="flex items-center bg-[#080d15] border border-[#1f2b40] focus-within:border-amber-400 rounded-xl px-2 py-1.5 shadow-inner">
                       <button
                         type="button"
-                        onClick={() => setBidAmount((v) => Math.max(1, v - 10))}
-                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] text-slate-300 font-bold text-sm flex items-center justify-center transition-colors"
+                        id="bid-decrement-btn"
+                        aria-label="Decrease bid amount"
+                        disabled={bidAmount <= 1}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setBidAmount((v) => {
+                            if (v <= 1) return 1;
+                            if (v <= 10) return v - 1;
+                            if (v <= 50) return v - 5;
+                            return v - 10;
+                          });
+                        }}
+                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] disabled:opacity-40 disabled:hover:bg-[#141d2c] text-slate-300 font-black text-base flex items-center justify-center transition-all active:scale-90 cursor-pointer select-none shrink-0"
                       >
-                        -
+                        −
                       </button>
                       <input
+                        id="bid-amount-input"
                         type="number"
                         min="1"
                         step="1"
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(Math.max(1, Number(e.target.value)))}
-                        className="w-full bg-transparent text-center font-mono font-bold text-emerald-400 text-lg outline-none"
+                        value={bidAmount || ""}
+                        onChange={(e) => {
+                          const val = e.target.value === "" ? 0 : Number(e.target.value);
+                          setBidAmount(isNaN(val) ? 1 : Math.max(0, val));
+                        }}
+                        onBlur={() => {
+                          if (!bidAmount || bidAmount < 1) setBidAmount(1);
+                        }}
+                        className="w-full bg-transparent text-center font-mono font-bold text-emerald-400 text-lg outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
                         type="button"
-                        onClick={() => setBidAmount((v) => v + 10)}
-                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] text-slate-300 font-bold text-sm flex items-center justify-center transition-colors"
+                        id="bid-increment-btn"
+                        aria-label="Increase bid amount"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setBidAmount((v) => {
+                            if (v < 10) return v + 1;
+                            if (v < 50) return v + 5;
+                            return v + 10;
+                          });
+                        }}
+                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] text-slate-300 font-black text-base flex items-center justify-center transition-all active:scale-90 cursor-pointer select-none shrink-0"
                       >
                         +
                       </button>
