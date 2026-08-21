@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+outbid.db
+outbid.db-shm
+outbid.db-wal
+
+# drizzle migrations (generated)
+/drizzle

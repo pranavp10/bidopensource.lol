@@ -1,128 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Bid = {
+  id: number;
   rank: number;
   name: string;
-  favicon: string;
-  description: string;
+  favicon: string | null;
+  description: string | null;
   timeAgo: string;
   clicks: number;
   amount: number;
-  stars?: number;
-  language?: string;
-  langColor?: string;
+  language: string | null;
+  langColor: string | null;
 };
-
-// ─── Seed data ────────────────────────────────────────────────────────────────
-const SEED_BIDS: Bid[] = [
-  {
-    rank: 1,
-    name: "trycomp.ai",
-    favicon: "https://www.google.com/s2/favicons?domain=trycomp.ai&sz=64",
-    description:
-      "Automate SOC 2, ISO 27001, HIPAA, and GDPR. 580+ integrations, 1,000+ companies, audit-ready in days.",
-    timeAgo: "10 hours ago",
-    clicks: 8505,
-    amount: 10000,
-    stars: 4821,
-    language: "TypeScript",
-    langColor: "#3178c6",
-  },
-  {
-    rank: 2,
-    name: "lathire.com",
-    favicon: "https://www.google.com/s2/favicons?domain=lathire.com&sz=64",
-    description:
-      "Latin America's largest talent marketplace. Hire vetted tech and generalist professionals in as little as 24 hours, for up to 80% less.",
-    timeAgo: "7 hours ago",
-    clicks: 1556,
-    amount: 3100,
-    stars: 1203,
-    language: "JavaScript",
-    langColor: "#f1e05a",
-  },
-  {
-    rank: 3,
-    name: "mytb.ai",
-    favicon: "https://www.google.com/s2/favicons?domain=mytb.ai&sz=64",
-    description:
-      "Automated, accurate, actionable bookkeeping and trial balance software for modern accounting firms.",
-    timeAgo: "8 hours ago",
-    clicks: 767,
-    amount: 2999,
-    stars: 892,
-    language: "Python",
-    langColor: "#3572A5",
-  },
-  {
-    rank: 4,
-    name: "linear.app",
-    favicon: "https://www.google.com/s2/favicons?domain=linear.app&sz=64",
-    description:
-      "The issue tracking tool that developers love. Built for speed and designed for clarity.",
-    timeAgo: "2 hours ago",
-    clicks: 432,
-    amount: 2499,
-    stars: 3401,
-    language: "TypeScript",
-    langColor: "#3178c6",
-  },
-  {
-    rank: 5,
-    name: "vercel.com",
-    favicon: "https://www.google.com/s2/favicons?domain=vercel.com&sz=64",
-    description:
-      "Frontend cloud for developers. Frameworks, workflows, and infrastructure to build a faster, more personalized Web.",
-    timeAgo: "5 hours ago",
-    clicks: 389,
-    amount: 1999,
-    stars: 7823,
-    language: "Go",
-    langColor: "#00ADD8",
-  },
-  {
-    rank: 6,
-    name: "raycast.com",
-    favicon: "https://www.google.com/s2/favicons?domain=raycast.com&sz=64",
-    description:
-      "A blazingly fast, totally extendable launcher for developers. Complete tasks, calculate, share links.",
-    timeAgo: "3 hours ago",
-    clicks: 251,
-    amount: 1500,
-    stars: 2190,
-    language: "Swift",
-    langColor: "#F05138",
-  },
-  {
-    rank: 7,
-    name: "retool.com",
-    favicon: "https://www.google.com/s2/favicons?domain=retool.com&sz=64",
-    description:
-      "Build internal tools, remarkably fast. Drag-and-drop building blocks connected to your databases and APIs.",
-    timeAgo: "6 hours ago",
-    clicks: 198,
-    amount: 1200,
-    stars: 1567,
-    language: "JavaScript",
-    langColor: "#f1e05a",
-  },
-  {
-    rank: 8,
-    name: "resend.com",
-    favicon: "https://www.google.com/s2/favicons?domain=resend.com&sz=64",
-    description:
-      "The email API for developers. Build, test, and deliver transactional emails at scale.",
-    timeAgo: "1 hour ago",
-    clicks: 143,
-    amount: 850,
-    stars: 934,
-    language: "TypeScript",
-    langColor: "#3178c6",
-  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number) {
@@ -134,7 +26,7 @@ function fmtMoney(n: number) {
   return "$" + n.toLocaleString();
 }
 
-// ─── Star icon ────────────────────────────────────────────────────────────────
+// ─── Icons ───────────────────────────────────────────────────────────────────
 function StarIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
@@ -143,7 +35,6 @@ function StarIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-// ─── Fork icon ────────────────────────────────────────────────────────────────
 function ForkIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
@@ -152,7 +43,6 @@ function ForkIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-// ─── Eye icon ─────────────────────────────────────────────────────────────────
 function EyeIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
@@ -161,7 +51,6 @@ function EyeIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-// ─── Octocat / GitHub mark ────────────────────────────────────────────────────
 function OctocatIcon({ size = 32 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 98 96" fill="currentColor">
@@ -174,25 +63,104 @@ function OctocatIcon({ size = 32 }: { size?: number }) {
   );
 }
 
-// ─── Rank badge variants ──────────────────────────────────────────────────────
+// ─── Rank styles ──────────────────────────────────────────────────────────────
 const RANK_COLORS: Record<number, { bg: string; color: string; border: string }> = {
   1: { bg: "#3d2b00", color: "#e3b341", border: "#bb8009" },
   2: { bg: "#1c2128", color: "#8b949e", border: "#30363d" },
   3: { bg: "#2d1e0f", color: "#c0782b", border: "#6e4012" },
 };
 function rankStyle(rank: number) {
+  return RANK_COLORS[rank] ?? { bg: "#161b22", color: "#8b949e", border: "#21262d" };
+}
+
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+function SkeletonCard() {
   return (
-    RANK_COLORS[rank] ?? { bg: "#161b22", color: "#8b949e", border: "#21262d" }
+    <div
+      style={{
+        background: "#161b22",
+        border: "1px solid #21262d",
+        borderRadius: 6,
+        padding: 16,
+        display: "flex",
+        gap: 12,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 6,
+          background: "#21262d",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 6,
+          background: "#21262d",
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div
+          style={{
+            height: 14,
+            width: "30%",
+            background: "#21262d",
+            borderRadius: 4,
+            animation: "shimmer 1.5s infinite",
+          }}
+        />
+        <div
+          style={{
+            height: 12,
+            width: "70%",
+            background: "#21262d",
+            borderRadius: 4,
+            animation: "shimmer 1.5s infinite",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          width: 60,
+          height: 20,
+          background: "#21262d",
+          borderRadius: 4,
+          animation: "shimmer 1.5s infinite",
+        }}
+      />
+      <style>{`
+        @keyframes shimmer {
+          0%   { opacity: 1; }
+          50%  { opacity: 0.4; }
+          100% { opacity: 1; }
+        }
+      `}</style>
+    </div>
   );
 }
 
 // ─── BidCard ──────────────────────────────────────────────────────────────────
-function BidCard({ bid }: { bid: Bid }) {
+function BidCard({
+  bid,
+  onOutbid,
+  onClickBid,
+}: {
+  bid: Bid;
+  onOutbid: (bid: Bid) => void;
+  onClickBid: (bid: Bid) => void;
+}) {
   const rs = rankStyle(bid.rank);
   const isTop3 = bid.rank <= 3;
 
   return (
     <div
+      role="listitem"
       style={{
         background: "#161b22",
         border: `1px solid ${isTop3 ? "#30363d" : "#21262d"}`,
@@ -205,6 +173,7 @@ function BidCard({ bid }: { bid: Bid }) {
         position: "relative",
         overflow: "hidden",
       }}
+      onClick={() => onClickBid(bid)}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.borderColor = "#58a6ff";
         (e.currentTarget as HTMLDivElement).style.background = "#1c2128";
@@ -214,7 +183,6 @@ function BidCard({ bid }: { bid: Bid }) {
         (e.currentTarget as HTMLDivElement).style.background = "#161b22";
       }}
     >
-      {/* Left accent stripe for top 3 */}
       {isTop3 && (
         <div
           style={{
@@ -245,7 +213,6 @@ function BidCard({ bid }: { bid: Bid }) {
           justifyContent: "center",
           flexShrink: 0,
           fontFamily: "monospace",
-          letterSpacing: "-0.5px",
           marginLeft: isTop3 ? 8 : 0,
         }}
       >
@@ -267,32 +234,26 @@ function BidCard({ bid }: { bid: Bid }) {
           flexShrink: 0,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={bid.favicon}
-          alt={bid.name}
-          width={28}
-          height={28}
-          style={{ objectFit: "contain" }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+        {bid.favicon && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={bid.favicon}
+            alt={bid.name}
+            width={28}
+            height={28}
+            style={{ objectFit: "contain" }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        )}
       </div>
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <span
-            style={{
-              fontWeight: 600,
-              fontSize: 14,
-              color: "#58a6ff",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLSpanElement).style.textDecoration = "underline")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLSpanElement).style.textDecoration = "none")}
+            style={{ fontWeight: 600, fontSize: 14, color: "#58a6ff" }}
           >
             {bid.name}
           </span>
@@ -312,23 +273,23 @@ function BidCard({ bid }: { bid: Bid }) {
           )}
         </div>
 
-        {/* Description */}
-        <p
-          style={{
-            fontSize: 12,
-            color: "#8b949e",
-            margin: "0 0 8px",
-            lineHeight: 1.5,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {bid.description}
-        </p>
+        {bid.description && (
+          <p
+            style={{
+              fontSize: 12,
+              color: "#8b949e",
+              margin: "0 0 8px",
+              lineHeight: 1.5,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {bid.description}
+          </p>
+        )}
 
-        {/* Meta row */}
         <div
           style={{
             display: "flex",
@@ -346,18 +307,12 @@ function BidCard({ bid }: { bid: Bid }) {
                   width: 10,
                   height: 10,
                   borderRadius: "50%",
-                  background: bid.langColor,
+                  background: bid.langColor ?? "#8b949e",
                   display: "inline-block",
                   border: "1px solid rgba(255,255,255,0.1)",
                 }}
               />
               {bid.language}
-            </span>
-          )}
-          {bid.stars !== undefined && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <StarIcon size={12} />
-              {fmt(bid.stars)}
             </span>
           )}
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -368,20 +323,24 @@ function BidCard({ bid }: { bid: Bid }) {
         </div>
       </div>
 
-      {/* Bid amount */}
-      <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+      {/* Amount + outbid button */}
+      <div
+        style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div
           style={{
             fontFamily: "monospace",
             fontWeight: 600,
             fontSize: 15,
             color: "#3fb950",
-            marginBottom: 4,
+            marginBottom: 6,
           }}
         >
           {fmtMoney(bid.amount)}
         </div>
         <button
+          onClick={() => onOutbid(bid)}
           style={{
             fontSize: 11,
             padding: "3px 10px",
@@ -393,8 +352,12 @@ function BidCard({ bid }: { bid: Bid }) {
             fontWeight: 600,
             transition: "background 0.15s",
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#2ea043")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#238636")}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.background = "#2ea043")
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.background = "#238636")
+          }
         >
           Outbid
         </button>
@@ -407,14 +370,7 @@ function BidCard({ bid }: { bid: Bid }) {
 function Tabs({ active, onChange }: { active: string; onChange: (t: string) => void }) {
   const tabs = ["Leaderboard", "About", "Rules"];
   return (
-    <div
-      style={{
-        display: "flex",
-        borderBottom: "1px solid #21262d",
-        marginBottom: 24,
-        gap: 0,
-      }}
-    >
+    <div style={{ display: "flex", borderBottom: "1px solid #21262d", marginBottom: 24 }}>
       {tabs.map((tab) => {
         const isActive = tab === active;
         return (
@@ -430,16 +386,14 @@ function Tabs({ active, onChange }: { active: string; onChange: (t: string) => v
               fontSize: 14,
               fontWeight: isActive ? 600 : 400,
               cursor: "pointer",
-              transition: "color 0.15s",
               marginBottom: -1,
+              transition: "color 0.15s",
             }}
             onMouseEnter={(e) => {
-              if (!isActive)
-                (e.currentTarget as HTMLButtonElement).style.color = "#e6edf3";
+              if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "#e6edf3";
             }}
             onMouseLeave={(e) => {
-              if (!isActive)
-                (e.currentTarget as HTMLButtonElement).style.color = "#8b949e";
+              if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "#8b949e";
             }}
           >
             {tab}
@@ -452,49 +406,104 @@ function Tabs({ active, onChange }: { active: string; onChange: (t: string) => v
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [bids, setBids] = useState<Bid[]>(SEED_BIDS);
+  const [bids, setBids] = useState<Bid[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState("");
-  const [bidAmount, setBidAmount] = useState(SEED_BIDS[0].amount + 1);
+  const [bidAmount, setBidAmount] = useState(10001);
   const [activeTab, setActiveTab] = useState("Leaderboard");
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
   const topBid = bids[0];
 
-  function handleOutbid() {
-    if (!url.trim()) return;
-    const rawName = url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const newBid: Bid = {
-      rank: 1,
-      name: rawName,
-      favicon: `https://www.google.com/s2/favicons?domain=${rawName}&sz=64`,
-      description: "Newly added to the leaderboard via outbid.",
-      timeAgo: "Just now",
-      clicks: 0,
-      amount: bidAmount,
-      stars: 0,
-      language: "TypeScript",
-      langColor: "#3178c6",
-    };
-    const updated = [newBid, ...bids]
-      .sort((a, b) => b.amount - a.amount)
-      .map((b, i) => ({ ...b, rank: i + 1 }));
-    setBids(updated);
-    setUrl("");
-    setBidAmount(updated[0].amount + 1);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+  // ── Fetch leaderboard ──────────────────────────────────────────────────────
+  const fetchBids = useCallback(async () => {
+    try {
+      const res = await fetch("/api/bids");
+      if (!res.ok) throw new Error("Failed to load leaderboard");
+      const data = await res.json();
+      setBids(data.bids);
+      if (data.bids.length > 0) {
+        setBidAmount(data.bids[0].amount + 1);
+      }
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBids().finally(() => setLoading(false));
+  }, [fetchBids]);
+
+  // ── Submit outbid ──────────────────────────────────────────────────────────
+  async function handleOutbid(prefillBid?: Bid) {
+    const targetUrl = prefillBid ? prefillBid.url : url;
+    if (!targetUrl.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/bids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: targetUrl,
+          amount: bidAmount,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Submission failed");
+      }
+      const data = await res.json();
+      setBids(data.bids);
+      if (data.bids.length > 0) setBidAmount(data.bids[0].amount + 1);
+      setUrl("");
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function handleRefresh() {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 700);
+  // ── Track click ────────────────────────────────────────────────────────────
+  async function handleClickBid(bid: Bid) {
+    try {
+      await fetch(`/api/bids/${bid.id}/click`, { method: "POST" });
+      // Optimistically update clicks in local state
+      setBids((prev) =>
+        prev.map((b) => (b.id === bid.id ? { ...b, clicks: b.clicks + 1 } : b))
+      );
+    } catch {
+      // silent fail – not critical
+    }
   }
+
+  // ── Refresh ────────────────────────────────────────────────────────────────
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    await fetchBids();
+    setIsRefreshing(false);
+  }
+
+  // ── Outbid shortcut from card ──────────────────────────────────────────────
+  function handleCardOutbid(bid: Bid) {
+    setUrl(bid.url);
+    setBidAmount(bid.amount + 1);
+    document.getElementById("product-url-input")?.focus();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const totalStars = bids.length * 800; // decorative
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e6edf3" }}>
-      {/* ── Header ── */}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header
         style={{
           background: "#161b22",
@@ -515,15 +524,10 @@ export default function Home() {
             gap: 16,
           }}
         >
-          {/* GitHub mark */}
-          <a
-            href="#"
-            style={{ color: "#e6edf3", display: "flex", alignItems: "center", flexShrink: 0 }}
-          >
+          <a href="#" style={{ color: "#e6edf3", display: "flex", alignItems: "center" }}>
             <OctocatIcon size={32} />
           </a>
 
-          {/* Search bar */}
           <div
             style={{
               flex: 1,
@@ -535,7 +539,6 @@ export default function Home() {
               borderRadius: 6,
               padding: "5px 12px",
               gap: 8,
-              cursor: "text",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="#8b949e">
@@ -557,19 +560,12 @@ export default function Home() {
             </kbd>
           </div>
 
-          {/* Nav links */}
           <nav style={{ display: "flex", alignItems: "center", gap: 16, marginLeft: 8 }}>
             {["Pull requests", "Issues", "Marketplace", "Explore"].map((item) => (
               <a
                 key={item}
                 href="#"
-                style={{
-                  fontSize: 14,
-                  color: "#e6edf3",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  transition: "color 0.15s",
-                }}
+                style={{ fontSize: 14, color: "#e6edf3", fontWeight: 600, whiteSpace: "nowrap" }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#8b949e")}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#e6edf3")}
               >
@@ -577,11 +573,7 @@ export default function Home() {
               </a>
             ))}
           </nav>
-
-          {/* Spacer */}
           <div style={{ flex: 1 }} />
-
-          {/* Avatar placeholder */}
           <div
             style={{
               width: 32,
@@ -602,19 +594,15 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── Main ── */}
+      {/* ── Main ────────────────────────────────────────────────────────────── */}
       <main style={{ maxWidth: 1012, margin: "0 auto", padding: "24px 16px 80px" }}>
-        {/* Repo header */}
+        {/* Repo breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <OctocatIcon size={18} />
           <div style={{ fontSize: 20, fontWeight: 400 }}>
-            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>
-              community
-            </a>
+            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>community</a>
             <span style={{ color: "#8b949e", margin: "0 6px" }}>/</span>
-            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>
-              outbid.lol
-            </a>
+            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>outbid.lol</a>
           </div>
           <span
             style={{
@@ -630,118 +618,53 @@ export default function Home() {
           </span>
         </div>
 
-        {/* Stats bar */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            marginBottom: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          {/* Watch */}
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#21262d",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              color: "#e6edf3",
-              padding: "5px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#30363d")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")}
-          >
-            <EyeIcon size={14} />
-            Watch
-            <span
+        {/* Repo action buttons */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+          {[
+            { icon: <EyeIcon size={14} />, label: "Watch", count: "1.9k" },
+            { icon: <ForkIcon size={14} />, label: "Fork", count: "342" },
+            { icon: <StarIcon size={14} />, label: "Star", count: fmt(totalStars) },
+          ].map(({ icon, label, count }) => (
+            <button
+              key={label}
               style={{
-                padding: "0 6px",
-                background: "#30363d",
-                borderRadius: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#21262d",
+                border: "1px solid #30363d",
+                borderRadius: 6,
                 color: "#e6edf3",
+                padding: "5px 12px",
+                fontSize: 12,
                 fontWeight: 600,
+                cursor: "pointer",
+                transition: "background 0.15s",
               }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLButtonElement).style.background = "#30363d")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")
+              }
             >
-              1.9k
-            </span>
-          </button>
+              {icon}
+              {label}
+              <span
+                style={{
+                  padding: "0 6px",
+                  background: "#30363d",
+                  borderRadius: 20,
+                  color: "#e6edf3",
+                  fontWeight: 600,
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          ))}
 
-          {/* Fork */}
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#21262d",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              color: "#e6edf3",
-              padding: "5px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#30363d")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")}
-          >
-            <ForkIcon size={14} />
-            Fork
-            <span
-              style={{
-                padding: "0 6px",
-                background: "#30363d",
-                borderRadius: 20,
-                color: "#e6edf3",
-                fontWeight: 600,
-              }}
-            >
-              342
-            </span>
-          </button>
-
-          {/* Star */}
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#21262d",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              color: "#e6edf3",
-              padding: "5px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#30363d")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")}
-          >
-            <StarIcon size={14} />
-            Star
-            <span
-              style={{
-                padding: "0 6px",
-                background: "#30363d",
-                borderRadius: 20,
-                color: "#e6edf3",
-                fontWeight: 600,
-              }}
-            >
-              {fmt(bids.reduce((s, b) => s + (b.stars ?? 0), 0))}
-            </span>
-          </button>
-
-          {/* Online pill */}
+          {/* Online indicator */}
           <div
             style={{
               display: "flex",
@@ -760,17 +683,17 @@ export default function Home() {
                 background: "#3fb950",
                 display: "inline-block",
                 boxShadow: "0 0 0 3px rgba(63,185,80,0.2)",
+                animation: "pulse 2s infinite",
               }}
             />
             <strong style={{ color: "#3fb950" }}>1,903 online</strong>
-            <span>· 1,062,005 visitors since launch</span>
+            <span>· 1,062,005 visitors</span>
           </div>
         </div>
 
-        {/* Tabs */}
         <Tabs active={activeTab} onChange={setActiveTab} />
 
-        {/* README / hero callout */}
+        {/* README panel */}
         <div
           style={{
             background: "#161b22",
@@ -788,7 +711,6 @@ export default function Home() {
               justifyContent: "space-between",
               padding: "8px 16px",
               borderBottom: "1px solid #21262d",
-              background: "#161b22",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
@@ -817,14 +739,14 @@ export default function Home() {
               outbid.lol
             </h1>
             <p style={{ color: "#8b949e", fontSize: 15, marginBottom: 16, lineHeight: 1.6 }}>
-              No ads, no API keys, no revenue sharing. Just outbid your competition
-              to get to the top.{" "}
+              No ads, no API keys, no revenue sharing. Just outbid your competition to get to the
+              top.{" "}
               <strong style={{ color: "#f78166" }}>
                 Will you take #1 when this site goes viral?
               </strong>
             </p>
 
-            {/* Alert box */}
+            {/* Info alert */}
             <div
               style={{
                 border: "1px solid #3fb950",
@@ -843,23 +765,59 @@ export default function Home() {
               <div>
                 <strong style={{ color: "#3fb950", fontSize: 13 }}>How it works</strong>
                 <p style={{ color: "#8b949e", fontSize: 13, margin: "4px 0 0", lineHeight: 1.5 }}>
-                  Your bid amount decides your rank. Paying less than the #1 price still puts you on
-                  the board at whatever place that bid can take. The top spot is currently{" "}
-                  <strong style={{ color: "#e6edf3" }}>{fmtMoney(topBid?.amount ?? 0)}</strong>.
+                  Your bid amount decides your rank. Paying less than the #1 price still puts you on the board at whatever place that bid can take. The top spot is currently{" "}
+                  <strong style={{ color: "#e6edf3", fontFamily: "monospace" }}>
+                    {fmtMoney(topBid?.amount ?? 0)}
+                  </strong>.
                 </p>
               </div>
             </div>
 
-            {/* Claim heading */}
+            {/* Claim box */}
             <div
               style={{
                 background: "#0d1117",
                 border: "1px solid #30363d",
                 borderRadius: 6,
                 padding: "20px 24px",
-                marginBottom: 4,
               }}
             >
+              {/* Error banner */}
+              {error && (
+                <div
+                  style={{
+                    background: "rgba(248,81,73,0.1)",
+                    border: "1px solid #f85149",
+                    borderRadius: 6,
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    color: "#f85149",
+                    marginBottom: 16,
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
+                  </svg>
+                  {error}
+                  <button
+                    onClick={() => setError(null)}
+                    style={{
+                      marginLeft: "auto",
+                      background: "none",
+                      border: "none",
+                      color: "#f85149",
+                      cursor: "pointer",
+                      fontSize: 16,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               <div
                 style={{
                   display: "flex",
@@ -884,9 +842,7 @@ export default function Home() {
                   <button
                     id="bid-decrease"
                     onClick={() =>
-                      setBidAmount((v) =>
-                        Math.max((topBid?.amount ?? 0) + 1, v - 100)
-                      )
+                      setBidAmount((v) => Math.max((topBid?.amount ?? 0) + 1, v - 100))
                     }
                     style={{
                       width: 26,
@@ -910,7 +866,6 @@ export default function Home() {
                     onMouseLeave={(e) =>
                       ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")
                     }
-                    aria-label="Decrease bid"
                   >
                     –
                   </button>
@@ -950,14 +905,13 @@ export default function Home() {
                     onMouseLeave={(e) =>
                       ((e.currentTarget as HTMLButtonElement).style.background = "#21262d")
                     }
-                    aria-label="Increase bid"
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              {/* Input row */}
+              {/* URL input + submit */}
               <div style={{ display: "flex", gap: 8 }}>
                 <div
                   style={{
@@ -973,7 +927,16 @@ export default function Home() {
                     transition: "border-color 0.15s, box-shadow 0.15s",
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b949e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#8b949e"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="10" />
                     <line x1="2" y1="12" x2="22" y2="12" />
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -1000,30 +963,50 @@ export default function Home() {
                 </div>
                 <button
                   id="outbid-submit-button"
-                  onClick={handleOutbid}
+                  onClick={() => handleOutbid()}
+                  disabled={submitting}
                   style={{
-                    background: submitted ? "#238636" : "#238636",
+                    background: submitted ? "#1a7f37" : "#238636",
                     color: "white",
                     border: "1px solid rgba(240,246,252,0.1)",
                     borderRadius: 6,
                     padding: "6px 20px",
                     fontWeight: 600,
                     fontSize: 14,
-                    cursor: "pointer",
+                    cursor: submitting ? "not-allowed" : "pointer",
                     transition: "background 0.15s",
                     whiteSpace: "nowrap",
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
+                    opacity: submitting ? 0.7 : 1,
                   }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.background = "#2ea043")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLButtonElement).style.background = "#238636")
-                  }
+                  onMouseEnter={(e) => {
+                    if (!submitting)
+                      (e.currentTarget as HTMLButtonElement).style.background = "#2ea043";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting)
+                      (e.currentTarget as HTMLButtonElement).style.background = submitted
+                        ? "#1a7f37"
+                        : "#238636";
+                  }}
                 >
-                  {submitted ? (
+                  {submitting ? (
+                    <>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        style={{ animation: "spin 0.8s linear infinite" }}
+                      >
+                        <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+                        <path d="M8 2a6 6 0 0 1 6 6" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      Submitting…
+                    </>
+                  ) : submitted ? (
                     <>
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
@@ -1036,13 +1019,14 @@ export default function Home() {
                 </button>
               </div>
               <p style={{ fontSize: 12, color: "#6e7681", marginTop: 8, marginBottom: 0 }}>
-                Already on the list? Enter the same URL or @handle and up your bid to get back to the top.
+                Already on the list? Enter the same URL or @handle and up your bid to get back to
+                the top.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Leaderboard section */}
+        {/* Leaderboard panel */}
         <div
           style={{
             background: "#161b22",
@@ -1051,7 +1035,6 @@ export default function Home() {
             overflow: "hidden",
           }}
         >
-          {/* Section header */}
           <div
             style={{
               display: "flex",
@@ -1068,22 +1051,25 @@ export default function Home() {
               <span style={{ fontWeight: 600, fontSize: 14, color: "#e6edf3" }}>
                 Leaderboard
               </span>
-              <span
-                style={{
-                  fontSize: 12,
-                  padding: "1px 7px",
-                  background: "#30363d",
-                  borderRadius: 20,
-                  color: "#e6edf3",
-                  fontWeight: 600,
-                }}
-              >
-                {bids.length}
-              </span>
+              {!loading && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    padding: "1px 7px",
+                    background: "#30363d",
+                    borderRadius: 20,
+                    color: "#e6edf3",
+                    fontWeight: 600,
+                  }}
+                >
+                  {bids.length}
+                </span>
+              )}
             </div>
             <button
               id="refresh-leaderboard"
               onClick={handleRefresh}
+              disabled={isRefreshing}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1095,7 +1081,7 @@ export default function Home() {
                 padding: "4px 12px",
                 fontSize: 12,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: isRefreshing ? "not-allowed" : "pointer",
                 transition: "all 0.15s",
               }}
               onMouseEnter={(e) => {
@@ -1119,15 +1105,37 @@ export default function Home() {
               >
                 <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" />
               </svg>
-              Refresh
+              {isRefreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
 
-          {/* Bid list */}
-          <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-            {bids.map((bid) => (
-              <BidCard key={`${bid.name}-${bid.rank}`} bid={bid} />
-            ))}
+          <div
+            role="list"
+            style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}
+          >
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : bids.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 20px",
+                  color: "#8b949e",
+                  fontSize: 14,
+                }}
+              >
+                <p style={{ margin: 0 }}>No bids yet. Be the first to claim #1!</p>
+              </div>
+            ) : (
+              bids.map((bid) => (
+                <BidCard
+                  key={bid.id}
+                  bid={bid}
+                  onOutbid={handleCardOutbid}
+                  onClickBid={handleClickBid}
+                />
+              ))
+            )}
           </div>
         </div>
 
@@ -1146,18 +1154,26 @@ export default function Home() {
           }}
         >
           <span>© 2025 outbid.lol</span>
-          <a href="#" style={{ color: "#6e7681" }}>Terms</a>
-          <a href="#" style={{ color: "#6e7681" }}>Privacy</a>
-          <a href="#" style={{ color: "#6e7681" }}>Security</a>
-          <a href="#" style={{ color: "#6e7681" }}>Status</a>
-          <a href="#" style={{ color: "#6e7681" }}>Docs</a>
-          <a href="#" style={{ color: "#6e7681" }}>Contact</a>
+          {["Terms", "Privacy", "Security", "Status", "Docs"].map((l) => (
+            <a key={l} href="#" style={{ color: "#6e7681" }}>{l}</a>
+          ))}
           <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             <OctocatIcon size={14} />
-            Made with GitHub spirit
+            Backed by SQLite · Powered by Drizzle
           </span>
         </footer>
       </main>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.4; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
