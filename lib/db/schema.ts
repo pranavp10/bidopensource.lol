@@ -6,14 +6,16 @@ export const bids = pgTable("bids", {
   url: text("url").notNull().unique(),
   favicon: text("favicon"),
   description: text("description"),
-  amount: integer("amount").notNull(),
+  amount: integer("amount").notNull().default(0),
   clicks: integer("clicks").notNull().default(0),
+  stars: integer("stars").notNull().default(0),
+  forks: integer("forks").notNull().default(0),
   language: text("language"),
   langColor: text("lang_color"),
-  // Payment fields
-  paid: boolean("paid").notNull().default(false),
-  checkoutId: text("checkout_id"),           // Polar checkout session ID
-  customerEmail: text("customer_email"),     // for Polar receipt matching
+  // Status fields
+  paid: boolean("paid").notNull().default(true),
+  checkoutId: text("checkout_id"),
+  customerEmail: text("customer_email"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
