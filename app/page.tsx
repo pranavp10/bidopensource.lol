@@ -439,13 +439,14 @@ export default function Home() {
     fetchBids().finally(() => setLoading(false));
   }, [fetchBids]);
 
-  // ── Submit outbid ──────────────────────────────────────────────────────────
+  // ── Submit outbid → Polar checkout ─────────────────────────────────────────
   async function handleOutbid(prefillBid?: Bid) {
     const targetUrl = prefillBid ? prefillBid.url : url;
     if (!targetUrl.trim()) return;
 
     setSubmitting(true);
     try {
+      // 1. Save a pending bid and receive a Polar checkout URL
       const res = await fetch("/api/bids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -459,14 +460,15 @@ export default function Home() {
         throw new Error(err.error ?? "Submission failed");
       }
       const data = await res.json();
-      setBids(data.bids);
-      if (data.bids.length > 0) setBidAmount(data.bids[0].amount + 1);
-      setUrl("");
-      setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 3000);
+
+      // 2. Redirect to Polar hosted checkout
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return; // navigation takes over
+      }
+      throw new Error("No checkout URL returned");
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setSubmitting(false);
     }
   }
