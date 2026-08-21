@@ -40,10 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database
-outbid.db
-outbid.db-shm
-outbid.db-wal
-
-# drizzle migrations (generated)
+# drizzle migrations (generated — commit these if you want version-controlled migrations)
 /drizzle
+
+# local env (never commit real credentials)
+.env.local
