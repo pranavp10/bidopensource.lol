@@ -15,8 +15,17 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Amount must be a positive number" }, { status: 400 });
     }
 
-    const productId = process.env.DODO_PAYMENTS_PRODUCT_ID || "pdt_0NIrI0VAIrv1m4xTHhmFs";
+    const productId = process.env.DODO_PAYMENTS_PRODUCT_ID;
+    if (!productId) {
+      return Response.json(
+        { error: "DODO_PAYMENTS_PRODUCT_ID environment variable is missing" },
+        { status: 500 }
+      );
+    }
+
+    const origin = request.headers.get("origin") || request.nextUrl.origin;
     const appUrl =
+      origin ||
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_URL ||
       "https://www.bidopensource.lol";
@@ -26,7 +35,7 @@ export async function POST(request: NextRequest) {
       product_cart: [
         {
           product_id: productId,
-          // If the Dodo product base price is $1, quantity equals the total bid amount in dollars
+          // Since product base unit is $1, quantity matches the dynamic dollar bid amount
           quantity: Math.max(1, Math.round(numAmount)),
         },
       ],

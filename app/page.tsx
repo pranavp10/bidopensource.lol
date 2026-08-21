@@ -167,8 +167,15 @@ export default function Home() {
           if (loadedBids.length > 0) {
             setBidAmount(loadedBids[0].amount + 1);
           }
-          if (typeof window !== "undefined" && window.location.search.includes("payment=success")) {
-            setPaymentSuccess(true);
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get("status");
+            if (status === "failed") {
+              setError("Payment was cancelled or failed on Dodo Payments.");
+              setPaymentSuccess(false);
+            } else if (params.get("payment") === "success" && status !== "failed") {
+              setPaymentSuccess(true);
+            }
           }
           setLoading(false);
         }
