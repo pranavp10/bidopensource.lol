@@ -109,6 +109,7 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Metadata Preview
   const [metaLoading, setMetaLoading] = useState(false);
@@ -165,6 +166,9 @@ export default function Home() {
           if (data.stats) setStats(data.stats);
           if (loadedBids.length > 0) {
             setBidAmount(loadedBids[0].amount + 1);
+          }
+          if (typeof window !== "undefined" && window.location.search.includes("payment=success")) {
+            setPaymentSuccess(true);
           }
           setLoading(false);
         }
@@ -256,7 +260,8 @@ export default function Home() {
         favicon: metaData?.favicon,
       };
 
-      const res = await fetch("/api/bids", {
+      // Call Dodo Checkout API
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -264,13 +269,16 @@ export default function Home() {
 
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.error || "Failed to place bid in database");
+        throw new Error(errData.error || "Failed to initiate Dodo checkout");
       }
 
       const data = await res.json();
-      setBids(data.bids || []);
-      if (data.activities) setActivities(data.activities);
-      if (data.bids?.length > 0) setBidAmount(data.bids[0].amount + 1);
+
+      // If Dodo checkout URL is returned, redirect customer to payment page
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
 
       setUrlInput("");
       setCustomDesc("");
@@ -441,6 +449,29 @@ export default function Home() {
 
       {/* ── Main Body Container ───────────────────────────────────────────── */}
       <main className="max-w-5xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+        {/* Payment Success Alert */}
+        {paymentSuccess && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-[#0e1724] to-[#090d14] border-2 border-emerald-500/60 shadow-lg shadow-emerald-500/10 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-bold text-lg shrink-0">
+                ✓
+              </div>
+              <div>
+                <div className="font-bold text-white text-base">Payment Succeeded! 🎉</div>
+                <div className="text-xs text-slate-300">
+                  Your bid has been processed by Dodo Payments and your rank is now live on the board.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setPaymentSuccess(false)}
+              className="text-xs text-slate-400 hover:text-white px-2 py-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* TAB 1: LEADERBOARD & AUCTION CONSOLE */}
         {activeTab === "leaderboard" && (
           <>
