@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Bid = {
@@ -12,459 +13,137 @@ type Bid = {
   description: string | null;
   timeAgo: string;
   clicks: number;
+  amount: number;
   stars: number;
   forks: number;
-  amount: number;
   language: string | null;
   langColor: string | null;
+  paid: boolean;
+};
+
+type ActivityEvent = {
+  id: string | number;
+  type: string;
+  title: string;
+  description: string | null;
+  timeAgo: string;
+  amount: number;
+  bidName: string;
+  rank: number;
+  timestamp: string;
+};
+
+type Stats = {
+  totalVolume: number;
+  totalClicks: number;
+  totalStars: number;
+  totalProjects: number;
+  topBidAmount: number;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(n: number | undefined | null) {
-  const val = n ?? 0;
-  if (val >= 1000000) return (val / 1000000).toFixed(1) + "M";
-  if (val >= 1000) return (val / 1000).toFixed(1) + "k";
-  return val.toLocaleString();
+function fmtNum(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "k";
+  return n.toLocaleString();
 }
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
-function StarIcon({ size = 16 }: { size?: number }) {
+function fmtMoney(n: number) {
+  return "$" + n.toLocaleString();
+}
+
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+function CrownIcon({ className = "size-5" }: { className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+    </svg>
+  );
+}
+
+function StarIcon({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor">
       <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z" />
     </svg>
   );
 }
 
-function ForkIcon({ size = 16 }: { size?: number }) {
+function CheckIcon({ className = "size-4" }: { className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
-      <path d="M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" />
-    </svg>
-  );
-}
-
-function EyeIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.83.88 9.576.43 8.898a1.62 1.62 0 0 1 0-1.798c.45-.677 1.367-1.931 2.637-3.022C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.825 4.242 9.473 3.5 8 3.5c-1.473 0-2.824.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z" />
-    </svg>
-  );
-}
-
-function OctocatIcon({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 98 96" fill="currentColor">
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor">
       <path
         fillRule="evenodd"
+        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
         clipRule="evenodd"
-        d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0Z"
       />
     </svg>
   );
 }
 
-function CheckIcon({ size = 16 }: { size?: number }) {
+function FlameIcon({ className = "size-4" }: { className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor">
-      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 23c-4.97 0-9-4.03-9-9 0-3.6 2.16-6.7 5.25-8.1.38-.17.82.02.97.4.15.38-.04.81-.42.97C6.31 8.35 4.5 10.98 4.5 14c0 4.14 3.36 7.5 7.5 7.5s7.5-3.36 7.5-7.5c0-2.2-1.02-4.22-2.73-5.54-.33-.25-.4-.73-.14-1.06.25-.33.73-.4 1.06-.14C20.08 9.07 21.5 11.41 21.5 14c0 4.97-4.03 9-9.5 9zM12 18c-2.21 0-4-1.79-4-4 0-1.39.73-2.61 1.83-3.31.33-.21.78-.11.99.22.21.33.11.78-.22.99-.65.41-1.1 1.15-1.1 1.99 0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5c0-.62-.23-1.19-.62-1.63-.28-.31-.26-.79.05-1.07.31-.28.79-.26 1.07.05.62.71.99 1.63.99 2.65 0 2.21-1.79 4-4 4z" />
     </svg>
   );
 }
 
-// ─── Rank styles ──────────────────────────────────────────────────────────────
-const RANK_COLORS: Record<number, { bg: string; color: string; border: string }> = {
-  1: { bg: "#3d2b00", color: "#e3b341", border: "#bb8009" },
-  2: { bg: "#1c2128", color: "#c9d1d9", border: "#30363d" },
-  3: { bg: "#2d1e0f", color: "#c0782b", border: "#6e4012" },
-};
-function rankStyle(rank: number) {
-  return RANK_COLORS[rank] ?? { bg: "#161b22", color: "#8b949e", border: "#21262d" };
-}
-
-// ─── Skeleton loader ──────────────────────────────────────────────────────────
-function SkeletonCard() {
-  return (
-    <div
-      style={{
-        background: "#161b22",
-        border: "1px solid #21262d",
-        borderRadius: 6,
-        padding: 16,
-        display: "flex",
-        gap: 12,
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 6,
-          background: "#21262d",
-          animation: "shimmer 1.5s infinite",
-        }}
-      />
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 6,
-          background: "#21262d",
-          animation: "shimmer 1.5s infinite",
-        }}
-      />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-        <div
-          style={{
-            height: 14,
-            width: "30%",
-            background: "#21262d",
-            borderRadius: 4,
-            animation: "shimmer 1.5s infinite",
-          }}
-        />
-        <div
-          style={{
-            height: 12,
-            width: "70%",
-            background: "#21262d",
-            borderRadius: 4,
-            animation: "shimmer 1.5s infinite",
-          }}
-        />
-      </div>
-      <div
-        style={{
-          width: 80,
-          height: 28,
-          background: "#21262d",
-          borderRadius: 6,
-          animation: "shimmer 1.5s infinite",
-        }}
-      />
-      <style>{`
-        @keyframes shimmer {
-          0%   { opacity: 1; }
-          50%  { opacity: 0.4; }
-          100% { opacity: 1; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ─── BidCard ──────────────────────────────────────────────────────────────────
-function BidCard({
-  bid,
-  onClickBid,
-}: {
-  bid: Bid;
-  onClickBid: (bid: Bid) => void;
-}) {
-  const rs = rankStyle(bid.rank);
-  const isTop3 = bid.rank <= 3;
-
-  return (
-    <div
-      role="listitem"
-      style={{
-        background: "#161b22",
-        border: `1px solid ${isTop3 ? "#30363d" : "#21262d"}`,
-        borderRadius: 6,
-        padding: "16px",
-        display: "flex",
-        gap: 12,
-        transition: "border-color 0.15s, background 0.15s",
-        cursor: "pointer",
-        position: "relative",
-        overflow: "hidden",
-      }}
-      onClick={() => onClickBid(bid)}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "#58a6ff";
-        (e.currentTarget as HTMLDivElement).style.background = "#1c2128";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = isTop3 ? "#30363d" : "#21262d";
-        (e.currentTarget as HTMLDivElement).style.background = "#161b22";
-      }}
-    >
-      {isTop3 && (
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 3,
-            background: rs.border,
-            borderRadius: "6px 0 0 6px",
-          }}
-        />
-      )}
-
-      {/* Rank badge */}
-      <div
-        style={{
-          minWidth: 32,
-          height: 32,
-          borderRadius: 6,
-          background: rs.bg,
-          border: `1px solid ${rs.border}`,
-          color: rs.color,
-          fontWeight: 600,
-          fontSize: 12,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          fontFamily: "monospace",
-          marginLeft: isTop3 ? 8 : 0,
-        }}
-      >
-        #{bid.rank}
-      </div>
-
-      {/* Avatar / Favicon */}
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 6,
-          overflow: "hidden",
-          background: "#0d1117",
-          border: "1px solid #30363d",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {bid.favicon ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={bid.favicon}
-            alt={bid.name}
-            width={32}
-            height={32}
-            style={{ objectFit: "contain", borderRadius: 4 }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-        ) : (
-          <OctocatIcon size={24} />
-        )}
-      </div>
-
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-          <a
-            href={bid.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClickBid(bid);
-            }}
-            style={{
-              fontWeight: 600,
-              fontSize: 15,
-              color: "#58a6ff",
-              textDecoration: "none",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.textDecoration = "none")}
-          >
-            {bid.name}
-          </a>
-          {bid.rank === 1 && (
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                background: "#bb8009",
-                color: "#0d1117",
-                padding: "1px 7px",
-                borderRadius: 20,
-              }}
-            >
-              #1 · Featured
-            </span>
-          )}
-        </div>
-
-        {bid.description && (
-          <p
-            style={{
-              fontSize: 13,
-              color: "#8b949e",
-              margin: "0 0 8px",
-              lineHeight: 1.5,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {bid.description}
-          </p>
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            fontSize: 12,
-            color: "#8b949e",
-            flexWrap: "wrap",
-          }}
-        >
-          {bid.language && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: bid.langColor ?? "#8b949e",
-                  display: "inline-block",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                }}
-              />
-              {bid.language}
-            </span>
-          )}
-
-          {bid.stars > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#e3b341" }}>
-              <StarIcon size={13} />
-              {fmt(bid.stars)}
-            </span>
-          )}
-
-          {bid.forks > 0 && (
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <ForkIcon size={13} />
-              {fmt(bid.forks)}
-            </span>
-          )}
-
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <EyeIcon size={13} />
-            {fmt(bid.clicks)} views
-          </span>
-
-          <span>{bid.timeAgo}</span>
-        </div>
-      </div>
-
-      {/* Action button */}
-      <div
-        style={{ textAlign: "right", flexShrink: 0, marginLeft: 8, display: "flex", alignItems: "center" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <a
-          href={bid.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => onClickBid(bid)}
-          style={{
-            fontSize: 12,
-            padding: "5px 14px",
-            background: "#21262d",
-            border: "1px solid #30363d",
-            borderRadius: 6,
-            color: "#c9d1d9",
-            cursor: "pointer",
-            fontWeight: 600,
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = "#30363d";
-            (e.currentTarget as HTMLAnchorElement).style.color = "#58a6ff";
-            (e.currentTarget as HTMLAnchorElement).style.borderColor = "#58a6ff";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = "#21262d";
-            (e.currentTarget as HTMLAnchorElement).style.color = "#c9d1d9";
-            (e.currentTarget as HTMLAnchorElement).style.borderColor = "#30363d";
-          }}
-        >
-          <span>Visit</span>
-          <span style={{ fontSize: 10 }}>↗</span>
-        </a>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab bar ──────────────────────────────────────────────────────────────────
-function Tabs({ active, onChange }: { active: string; onChange: (t: string) => void }) {
-  const tabs = ["Leaderboard", "About", "Rules"];
-  return (
-    <div style={{ display: "flex", borderBottom: "1px solid #21262d", marginBottom: 24 }}>
-      {tabs.map((tab) => {
-        const isActive = tab === active;
-        return (
-          <button
-            key={tab}
-            onClick={() => onChange(tab)}
-            style={{
-              background: "transparent",
-              border: "none",
-              borderBottom: isActive ? "2px solid #f78166" : "2px solid transparent",
-              color: isActive ? "#e6edf3" : "#8b949e",
-              padding: "8px 16px",
-              fontSize: 14,
-              fontWeight: isActive ? 600 : 400,
-              cursor: "pointer",
-              marginBottom: -1,
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "#e6edf3";
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = "#8b949e";
-            }}
-          >
-            {tab}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [bids, setBids] = useState<Bid[]>([]);
+  const [activities, setActivities] = useState<ActivityEvent[]>([]);
+  const [stats, setStats] = useState<Stats>({
+    totalVolume: 0,
+    totalClicks: 0,
+    totalStars: 0,
+    totalProjects: 0,
+    topBidAmount: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [url, setUrl] = useState("");
-  const [activeTab, setActiveTab] = useState("Leaderboard");
+
+  // Form State
+  const [urlInput, setUrlInput] = useState("");
+  const [bidAmount, setBidAmount] = useState(10);
+  const [customDesc, setCustomDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
 
-  const topBid = bids[0];
+  // Metadata Preview
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaData, setMetaData] = useState<{
+    name?: string;
+    description?: string;
+    stars?: number;
+    forks?: number;
+    language?: string | null;
+    langColor?: string | null;
+    favicon?: string;
+  } | null>(null);
 
-  // ── Fetch leaderboard ──────────────────────────────────────────────────────
-  const fetchBids = useCallback(async () => {
+  // Navigation & Filtering
+  const [activeTab, setActiveTab] = useState<"leaderboard" | "activity" | "about" | "rules">("leaderboard");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"rank" | "clicks" | "stars">("rank");
+
+  // ── Fetch bids & activity from database API ───────────────────────────────
+  const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/bids");
-      if (!res.ok) throw new Error("Failed to load projects");
+      if (!res.ok) throw new Error("Failed to load auction board data from database");
       const data = await res.json();
-      setBids(data.bids);
+      const loadedBids = data.bids || [];
+      setBids(loadedBids);
+      setActivities(data.activities || []);
+      if (data.stats) setStats(data.stats);
+
+      if (loadedBids.length > 0) {
+        setBidAmount(loadedBids[0].amount + 1);
+      } else {
+        setBidAmount(10);
+      }
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -472,615 +151,1002 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetchBids().finally(() => setLoading(false));
-  }, [fetchBids]);
+    let ignore = false;
 
-  // ── Submit GitHub repo directly ───────────────────────────────────────────
-  async function handleSubmitRepo() {
-    if (!url.trim()) return;
+    async function init() {
+      try {
+        const res = await fetch("/api/bids");
+        if (!res.ok) throw new Error("Failed to load auction board data");
+        const data = await res.json();
+        if (!ignore) {
+          const loadedBids = data.bids || [];
+          setBids(loadedBids);
+          setActivities(data.activities || []);
+          if (data.stats) setStats(data.stats);
+          if (loadedBids.length > 0) {
+            setBidAmount(loadedBids[0].amount + 1);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError((err as Error).message);
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // ── URL Metadata Auto-Enrichment ──────────────────────────────────────────
+  useEffect(() => {
+    const trimmed = urlInput.trim();
+    const isValid = trimmed.length >= 4 && (trimmed.includes(".") || trimmed.includes("/"));
+
+    const timer = setTimeout(async () => {
+      if (!isValid) {
+        setMetaData(null);
+        return;
+      }
+
+      setMetaLoading(true);
+      try {
+        const res = await fetch(`/api/meta?url=${encodeURIComponent(trimmed)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMetaData(data);
+          if (data.description && !customDesc) {
+            setCustomDesc(data.description);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch meta:", err);
+      } finally {
+        setMetaLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [urlInput, customDesc]);
+
+  // ── Simulated Rank Calculation ────────────────────────────────────────────
+  const simulatedRank = useMemo(() => {
+    if (!bids.length) return 1;
+    const index = bids.findIndex((b) => bidAmount > b.amount);
+    return index === -1 ? bids.length + 1 : index + 1;
+  }, [bids, bidAmount]);
+
+  const topBid = bids[0];
+  const thirdBid = bids[2];
+
+  // ── Quick Bid Presets ─────────────────────────────────────────────────────
+  function handleQuickBidChip(action: "top1" | "top3" | 50 | 100 | 500) {
+    if (action === "top1") {
+      setBidAmount((topBid?.amount ?? 0) + 1);
+    } else if (action === "top3") {
+      setBidAmount((thirdBid?.amount ?? 50) + 1);
+    } else {
+      setBidAmount((prev) => prev + action);
+    }
+  }
+
+  // ── Submit Bid to Database ────────────────────────────────────────────────
+  async function handlePlaceBid(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!urlInput.trim()) return;
 
     setSubmitting(true);
     setError(null);
+
     try {
+      const payload = {
+        url: urlInput.trim(),
+        name: metaData?.name,
+        description: customDesc || metaData?.description,
+        amount: bidAmount,
+        language: metaData?.language,
+        langColor: metaData?.langColor,
+        stars: metaData?.stars,
+        forks: metaData?.forks,
+        favicon: metaData?.favicon,
+      };
+
       const res = await fetch("/api/bids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: url.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Submission failed");
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to place bid in database");
       }
 
-      setSubmitted(true);
-      setUrl("");
-      await fetchBids();
+      const data = await res.json();
+      setBids(data.bids || []);
+      if (data.activities) setActivities(data.activities);
+      if (data.bids?.length > 0) setBidAmount(data.bids[0].amount + 1);
 
-      setTimeout(() => {
-        setSubmitted(false);
-      }, 3000);
-    } catch (e) {
-      setError((e as Error).message);
+      setUrlInput("");
+      setCustomDesc("");
+      setMetaData(null);
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setSubmitting(false);
     }
   }
 
-  // ── Track click ────────────────────────────────────────────────────────────
-  async function handleClickBid(bid: Bid) {
-    try {
-      await fetch(`/api/bids/${bid.id}/click`, { method: "POST" });
-      // Optimistically update clicks in local state
-      setBids((prev) =>
-        prev.map((b) => (b.id === bid.id ? { ...b, clicks: b.clicks + 1 } : b))
-      );
-    } catch {
-      // silent fail
+  // ── Outbid from Card ──────────────────────────────────────────────────────
+  function handleCardOutbid(bid: Bid) {
+    setUrlInput(bid.url);
+    setBidAmount(bid.amount + 1);
+    const input = document.getElementById("bid-url-input");
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
 
-  // ── Refresh ────────────────────────────────────────────────────────────────
-  async function handleRefresh() {
-    setIsRefreshing(true);
-    await fetchBids();
-    setIsRefreshing(false);
+  // ── Click Tracker ─────────────────────────────────────────────────────────
+  async function handleCardClick(bid: Bid) {
+    try {
+      fetch(`/api/bids/${bid.id}/click`, { method: "POST" });
+      setBids((prev) =>
+        prev.map((b) => (b.id === bid.id ? { ...b, clicks: b.clicks + 1 } : b))
+      );
+      setStats((prev) => ({ ...prev, totalClicks: prev.totalClicks + 1 }));
+    } catch {
+      // Non-blocking
+    }
   }
 
-  const totalStars = bids.reduce((acc, b) => acc + (b.stars || 0), 0);
+  // ── Filtered & Sorted Bids ────────────────────────────────────────────────
+  const filteredBids = useMemo(() => {
+    let list = [...bids];
+
+    if (selectedLanguage !== "All") {
+      list = list.filter((b) => b.language === selectedLanguage);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.name.toLowerCase().includes(q) ||
+          b.description?.toLowerCase().includes(q) ||
+          b.url.toLowerCase().includes(q)
+      );
+    }
+
+    if (sortBy === "clicks") {
+      list.sort((a, b) => b.clicks - a.clicks);
+    } else if (sortBy === "stars") {
+      list.sort((a, b) => (b.stars || 0) - (a.stars || 0));
+    } else {
+      list.sort((a, b) => b.amount - a.amount);
+    }
+
+    return list;
+  }, [bids, selectedLanguage, searchQuery, sortBy]);
+
+  const allLanguages = useMemo(() => {
+    const set = new Set<string>();
+    bids.forEach((b) => {
+      if (b.language) set.add(b.language);
+    });
+    return ["All", ...Array.from(set)];
+  }, [bids]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e6edf3" }}>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header
-        style={{
-          background: "#161b22",
-          borderBottom: "1px solid #21262d",
-          padding: "0 24px",
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1012,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            height: 62,
-            gap: 16,
-          }}
-        >
-          <a href="#" style={{ color: "#e6edf3", display: "flex", alignItems: "center" }}>
-            <OctocatIcon size={32} />
-          </a>
+    <div className="min-h-screen bg-[#070a0f] text-[#f1f5f9] flex flex-col selection:bg-amber-500/30 selection:text-amber-300">
+      {/* ── Top Live Marquee Ticker ───────────────────────────────────────── */}
+      <div className="bg-[#0b1018] border-b border-[#1b2434] py-2 overflow-hidden text-xs text-[#94a3b8]">
+        <div className="animate-marquee whitespace-nowrap flex items-center gap-12 font-mono">
+          <span className="inline-flex items-center gap-2">
+            <span className="size-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+            <strong className="text-emerald-400">DATABASE SYNCED</strong> · {stats.totalProjects} Active Projects
+          </span>
+          <span className="text-slate-400">
+            👑 #1 Reigning: <strong className="text-amber-400">{topBid ? topBid.name : "None (Available)"}</strong> ({topBid ? fmtMoney(topBid.amount) : "$0"})
+          </span>
+          <span className="text-slate-400">
+            📊 Total Volume: <strong className="text-emerald-400">{fmtMoney(stats.totalVolume)}</strong>
+          </span>
+          <span className="text-slate-400">
+            ⚡ Total Clicks: <strong className="text-sky-400">{fmtNum(stats.totalClicks)}</strong>
+          </span>
+          <span className="text-slate-400">
+            ⭐ GitHub Stars: <strong className="text-amber-300">{fmtNum(stats.totalStars)}</strong>
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="size-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+            <strong className="text-emerald-400">DATABASE SYNCED</strong> · {stats.totalProjects} Active Projects
+          </span>
+        </div>
+      </div>
 
-          <div
-            style={{
-              flex: 1,
-              maxWidth: 280,
-              display: "flex",
-              alignItems: "center",
-              background: "#0d1117",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              padding: "5px 12px",
-              gap: 8,
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="#8b949e">
-              <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z" />
-            </svg>
-            <span style={{ fontSize: 14, color: "#8b949e" }}>Explore open source…</span>
+      {/* ── Main Navigation Header ────────────────────────────────────────── */}
+      <header className="sticky top-0 z-50 bg-[#070a0f]/90 backdrop-blur-md border-b border-[#1b2434]">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="size-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-black font-extrabold text-lg">
+                👑
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold tracking-tight text-lg text-white group-hover:text-amber-400 transition-colors">
+                  bidopensource<span className="text-amber-400">.lol</span>
+                </span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
+                  Open Source Auction Board
+                </span>
+              </div>
+            </Link>
           </div>
 
-          <nav style={{ display: "flex", alignItems: "center", gap: 16, marginLeft: 8 }}>
-            {["Showcase", "Trending", "Leaderboard"].map((item) => (
-              <a
-                key={item}
-                href="#"
-                style={{ fontSize: 14, color: "#e6edf3", fontWeight: 600, whiteSpace: "nowrap" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#8b949e")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#e6edf3")}
-              >
-                {item}
-              </a>
-            ))}
+          {/* Tab Navigation */}
+          <nav className="flex items-center gap-1 bg-[#0f1724] p-1 rounded-xl border border-[#1e2a3f]">
+            <button
+              onClick={() => setActiveTab("leaderboard")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "leaderboard"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Leaderboard
+            </button>
+            <button
+              onClick={() => setActiveTab("activity")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === "activity"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Live Feed
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+            <button
+              onClick={() => setActiveTab("about")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "about"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              About
+            </button>
+            <button
+              onClick={() => setActiveTab("rules")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === "rules"
+                  ? "bg-amber-500 text-black shadow-md shadow-amber-500/25"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Rules
+            </button>
           </nav>
-          <div style={{ flex: 1 }} />
         </div>
       </header>
 
-      {/* ── Main ────────────────────────────────────────────────────────────── */}
-      <main style={{ maxWidth: 1012, margin: "0 auto", padding: "24px 16px 80px" }}>
-        {/* Repo breadcrumb */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <OctocatIcon size={18} />
-          <div style={{ fontSize: 20, fontWeight: 400 }}>
-            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>community</a>
-            <span style={{ color: "#8b949e", margin: "0 6px" }}>/</span>
-            <a href="#" style={{ color: "#58a6ff", fontWeight: 600 }}>bidopensource.lol</a>
-          </div>
-          <span
-            style={{
-              fontSize: 12,
-              padding: "2px 8px",
-              border: "1px solid #58a6ff",
-              borderRadius: 20,
-              color: "#58a6ff",
-              fontWeight: 500,
-            }}
-          >
-            Open Source
-          </span>
-        </div>
-
-        {/* Action badges */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-          {[
-            { icon: <EyeIcon size={14} />, label: "Projects", count: bids.length.toString() },
-            { icon: <StarIcon size={14} />, label: "Total Stars", count: fmt(totalStars) },
-          ].map(({ icon, label, count }) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "#21262d",
-                border: "1px solid #30363d",
-                borderRadius: 6,
-                color: "#e6edf3",
-                padding: "5px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              {icon}
-              {label}
-              <span
-                style={{
-                  padding: "0 6px",
-                  background: "#30363d",
-                  borderRadius: 20,
-                  color: "#e6edf3",
-                  fontWeight: 600,
-                }}
-              >
-                {count}
-              </span>
-            </div>
-          ))}
-
-          {/* Online indicator */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              marginLeft: "auto",
-              fontSize: 12,
-              color: "#8b949e",
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#3fb950",
-                display: "inline-block",
-                boxShadow: "0 0 0 3px rgba(63,185,80,0.2)",
-                animation: "pulse 2s infinite",
-              }}
-            />
-            <strong style={{ color: "#3fb950" }}>Live Open Source Showcase</strong>
-          </div>
-        </div>
-
-        <Tabs active={activeTab} onChange={setActiveTab} />
-
-        {activeTab === "About" ? (
-          <div
-            style={{
-              background: "#161b22",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              padding: "24px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <h2 style={{ fontSize: 22, fontWeight: 700, marginTop: 0 }}>About bidopensource.lol</h2>
-            <p style={{ color: "#8b949e", fontSize: 14, lineHeight: 1.6 }}>
-              bidopensource.lol is a community directory designed to showcase and discover fantastic open-source repositories and tools.
-            </p>
-            <p style={{ color: "#8b949e", fontSize: 14, lineHeight: 1.6 }}>
-              Simply paste any GitHub repository link (e.g. <code>facebook/react</code> or <code>https://github.com/shadcn-ui/ui</code>), and it will automatically pull real-time repository stars, language, description, and avatar!
-            </p>
-          </div>
-        ) : activeTab === "Rules" ? (
-          <div
-            style={{
-              background: "#161b22",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              padding: "24px 32px",
-              marginBottom: 20,
-            }}
-          >
-            <h2 style={{ fontSize: 22, fontWeight: 700, marginTop: 0 }}>Showcase Guidelines</h2>
-            <ul style={{ color: "#8b949e", fontSize: 14, lineHeight: 1.8, paddingLeft: 20 }}>
-              <li>Must be a valid open-source repository or project.</li>
-              <li>No spam, malicious software, or abusive URLs.</li>
-              <li>Projects are ranked by community views and stars.</li>
-            </ul>
-          </div>
-        ) : (
+      {/* ── Main Body Container ───────────────────────────────────────────── */}
+      <main className="max-w-5xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+        {/* TAB 1: LEADERBOARD & AUCTION CONSOLE */}
+        {activeTab === "leaderboard" && (
           <>
-            {/* README / Submission panel */}
-            <div
-              style={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 6,
-                marginBottom: 20,
-                overflow: "hidden",
-              }}
-            >
-              {/* File header */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 16px",
-                  borderBottom: "1px solid #21262d",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="#8b949e">
-                    <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.5A3.744 3.744 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z" />
-                  </svg>
-                  <span style={{ fontWeight: 600, color: "#e6edf3" }}>README.md</span>
-                </div>
-                <span style={{ fontSize: 12, color: "#8b949e" }}>
-                  Updated {topBid?.timeAgo ?? "recently"}
-                </span>
-              </div>
-
-              {/* README body */}
-              <div style={{ padding: "24px 32px" }}>
-                <h1
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 800,
-                    letterSpacing: "-0.5px",
-                    color: "#e6edf3",
-                    marginTop: 0,
-                    marginBottom: 8,
-                  }}
-                >
-                  bidopensource.lol
-                </h1>
-                <p style={{ color: "#8b949e", fontSize: 15, marginBottom: 16, lineHeight: 1.6 }}>
-                  Showcase your open source projects, tools, and repositories to the world. Free and open to everyone.{" "}
-                  <strong style={{ color: "#58a6ff" }}>
-                    Add your GitHub repository link below!
-                  </strong>
-                </p>
-
-                {/* Claim / Submit box */}
-                <div
-                  style={{
-                    background: "#0d1117",
-                    border: "1px solid #30363d",
-                    borderRadius: 6,
-                    padding: "20px 24px",
-                  }}
-                >
-                  {/* Error banner */}
-                  {error && (
-                    <div
-                      style={{
-                        background: "rgba(248,81,73,0.1)",
-                        border: "1px solid #f85149",
-                        borderRadius: 6,
-                        padding: "10px 14px",
-                        fontSize: 13,
-                        color: "#f85149",
-                        marginBottom: 16,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                      }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
-                      </svg>
-                      {error}
-                      <button
-                        onClick={() => setError(null)}
-                        style={{
-                          marginLeft: "auto",
-                          background: "none",
-                          border: "none",
-                          color: "#f85149",
-                          cursor: "pointer",
-                          fontSize: 16,
-                        }}
-                      >
-                        ×
-                      </button>
+            {/* ── King of the Hill #1 Spotlight Podium ──────────────────── */}
+            {topBid ? (
+              <div className="relative rounded-2xl p-6 md:p-8 bg-gradient-to-b from-amber-500/10 via-[#0e1420] to-[#090d14] border-2 border-amber-500/50 glow-gold shadow-2xl overflow-hidden">
+                <div className="absolute -right-10 -top-10 size-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <div className="size-16 md:size-20 rounded-2xl bg-[#141b28] border-2 border-amber-400/80 p-2 flex items-center justify-center shadow-lg shadow-amber-500/20 overflow-hidden">
+                        {topBid.favicon ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={topBid.favicon}
+                            alt={topBid.name}
+                            className="size-full object-contain"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <span className="text-2xl font-black text-amber-400">
+                            {topBid.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="crown-float absolute -top-3.5 -right-3.5 size-7 rounded-full bg-amber-400 text-black flex items-center justify-center shadow-md">
+                        <CrownIcon className="size-4" />
+                      </div>
                     </div>
-                  )}
 
-                  <div style={{ marginBottom: 12 }}>
-                    <label
-                      htmlFor="product-url-input"
-                      style={{
-                        display: "block",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#e6edf3",
-                        marginBottom: 6,
-                      }}
-                    >
-                      Add your GitHub repository or project link:
-                    </label>
+                    <div className="space-y-1.5 max-w-xl">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-400 text-black">
+                          #1 Reigning Champion
+                        </span>
+                        <a
+                          href={topBid.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => handleCardClick(topBid)}
+                          className="font-bold text-lg md:text-xl text-white hover:text-amber-400 transition-colors"
+                        >
+                          {topBid.name} ↗
+                        </a>
+                      </div>
+
+                      <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">
+                        {topBid.description || "The leading open source project holding the top spot."}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-400 pt-1">
+                        {topBid.language && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className="size-2.5 rounded-full"
+                              style={{ backgroundColor: topBid.langColor || "#38bdf8" }}
+                            />
+                            {topBid.language}
+                          </span>
+                        )}
+                        {topBid.stars > 0 && (
+                          <span className="inline-flex items-center gap-1 text-amber-400">
+                            <StarIcon className="size-3.5" />
+                            {fmtNum(topBid.stars)} stars
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-emerald-400">
+                          <span className="size-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                          {fmtNum(topBid.clicks)} clicks
+                        </span>
+                        <span className="text-slate-500 font-mono">Held for {topBid.timeAgo}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* URL input + submit */}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <div
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        background: "#0d1117",
-                        border: `1px solid ${isFocused ? "#58a6ff" : "#30363d"}`,
-                        borderRadius: 6,
-                        padding: "6px 12px",
-                        gap: 8,
-                        boxShadow: isFocused ? "0 0 0 3px rgba(31,111,235,0.3)" : "none",
-                        transition: "border-color 0.15s, box-shadow 0.15s",
-                      }}
-                    >
-                      <OctocatIcon size={18} />
-                      <input
-                        id="product-url-input"
-                        type="text"
-                        placeholder="https://github.com/owner/repo or owner/repo"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        onFocus={() => setIsFocused(true)}
-                        onBlur={() => setIsFocused(false)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSubmitRepo()}
-                        style={{
-                          flex: 1,
-                          border: "none",
-                          outline: "none",
-                          fontSize: 14,
-                          color: "#e6edf3",
-                          background: "transparent",
-                          padding: "4px 0",
-                        }}
-                      />
-                    </div>
+                  {/* King's Price & Dethrone Button */}
+                  <div className="flex flex-col items-start md:items-end gap-2 bg-[#121927]/80 p-4 rounded-xl border border-amber-500/30">
+                    <span className="text-xs text-slate-400 font-medium">Reign Price</span>
+                    <span className="font-mono text-2xl md:text-3xl font-extrabold text-amber-400">
+                      {fmtMoney(topBid.amount)}
+                    </span>
                     <button
-                      id="outbid-submit-button"
-                      onClick={handleSubmitRepo}
-                      disabled={submitting || !url.trim()}
-                      style={{
-                        background: submitted ? "#1a7f37" : "#238636",
-                        color: "white",
-                        border: "1px solid rgba(240,246,252,0.1)",
-                        borderRadius: 6,
-                        padding: "6px 20px",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        cursor: submitting || !url.trim() ? "not-allowed" : "pointer",
-                        transition: "background 0.15s",
-                        whiteSpace: "nowrap",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        opacity: submitting || !url.trim() ? 0.7 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!submitting && url.trim())
-                          (e.currentTarget as HTMLButtonElement).style.background = "#2ea043";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!submitting)
-                          (e.currentTarget as HTMLButtonElement).style.background = submitted
-                            ? "#1a7f37"
-                            : "#238636";
-                      }}
+                      onClick={() => handleCardOutbid(topBid)}
+                      className="w-full md:w-auto px-4 py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-500/20 transition-all active:scale-95"
                     >
-                      {submitting ? (
-                        <>
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            style={{ animation: "spin 0.8s linear infinite" }}
-                          >
-                            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-                            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                          Adding…
-                        </>
-                      ) : submitted ? (
-                        <>
-                          <CheckIcon size={14} />
-                          Added!
-                        </>
-                      ) : (
-                        "Add Project"
-                      )}
+                      Dethrone for {fmtMoney(topBid.amount + 1)}
                     </button>
                   </div>
-                  <p style={{ fontSize: 12, color: "#6e7681", marginTop: 8, marginBottom: 0 }}>
-                    Instant listing · Auto-fetches stars, descriptions, and language tags.
-                  </p>
                 </div>
               </div>
-            </div>
-
-            {/* Leaderboard panel */}
-            <div
-              style={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 6,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  borderBottom: "1px solid #21262d",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="#8b949e">
-                    <path d="M6 2a.75.75 0 0 1 .75.75v1.5h2.5V2.75a.75.75 0 0 1 1.5 0v1.5h1.75A1.75 1.75 0 0 1 14.25 6v7.25A1.75 1.75 0 0 1 12.5 15h-9a1.75 1.75 0 0 1-1.75-1.75V6A1.75 1.75 0 0 1 3.5 4.25H5.25V2.75A.75.75 0 0 1 6 2ZM3.5 5.75A.25.25 0 0 0 3.25 6v7.25c0 .138.112.25.25.25h9a.25.25 0 0 0 .25-.25V6a.25.25 0 0 0-.25-.25H3.5Z" />
-                  </svg>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: "#e6edf3" }}>
-                    Projects Directory
-                  </span>
-                  {!loading && (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        padding: "1px 7px",
-                        background: "#30363d",
-                        borderRadius: 20,
-                        color: "#e6edf3",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {bids.length}
-                    </span>
-                  )}
+            ) : (
+              <div className="rounded-2xl p-6 md:p-8 bg-gradient-to-b from-amber-500/5 via-[#0e1420] to-[#090d14] border border-amber-500/30 text-center space-y-3">
+                <div className="size-12 rounded-2xl bg-amber-500/20 text-amber-400 font-extrabold text-2xl flex items-center justify-center mx-auto">
+                  👑
                 </div>
-                <button
-                  id="refresh-leaderboard"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    background: "transparent",
-                    border: "1px solid #30363d",
-                    borderRadius: 6,
-                    color: "#8b949e",
-                    padding: "4px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: isRefreshing ? "not-allowed" : "pointer",
-                    transition: "all 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "#21262d";
-                    (e.currentTarget as HTMLButtonElement).style.color = "#e6edf3";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                    (e.currentTarget as HTMLButtonElement).style.color = "#8b949e";
-                  }}
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    style={{
-                      transition: "transform 0.5s",
-                      transform: isRefreshing ? "rotate(360deg)" : "none",
-                    }}
-                  >
-                    <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" />
-                  </svg>
-                  {isRefreshing ? "Refreshing…" : "Refresh"}
-                </button>
+                <h3 className="text-xl font-bold text-white">#1 Crown is Unclaimed</h3>
+                <p className="text-sm text-slate-400 max-w-md mx-auto">
+                  Be the very first open source project to claim the top spot on the live auction board.
+                </p>
+              </div>
+            )}
+
+            {/* ── Interactive Bidding Console & Rank Simulator ───────────── */}
+            <section className="rounded-2xl p-6 md:p-8 bg-[#0c111a] border border-[#1c273a] shadow-xl space-y-6">
+              <div className="text-center max-w-2xl mx-auto space-y-2">
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+                  Claim Your Spot On The Leaderboard
+                </h2>
+                <p className="text-sm text-slate-400">
+                  No algorithms. No ad networks. The higher your bid, the higher your rank. Paying less than #1 still places you on the board at your winning position.
+                </p>
               </div>
 
-              <div
-                role="list"
-                style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}
-              >
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
-                ) : bids.length === 0 ? (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "40px 20px",
-                      color: "#8b949e",
-                      fontSize: 14,
-                    }}
-                  >
-                    <p style={{ margin: 0 }}>No projects yet. Be the first to add a repository!</p>
+              {/* Dynamic Rank Simulator Banner */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-sky-500/15 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-amber-500 text-black font-black text-lg flex items-center justify-center shrink-0">
+                    #{simulatedRank}
                   </div>
-                ) : (
-                  bids.map((bid) => (
-                    <BidCard
-                      key={bid.id}
-                      bid={bid}
-                      onClickBid={handleClickBid}
+                  <div>
+                    <div className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                      Live Rank Prediction
+                    </div>
+                    <div className="text-sm font-bold text-white">
+                      A bid of <span className="font-mono text-emerald-400">{fmtMoney(bidAmount)}</span> secures{" "}
+                      <span className="text-amber-400">Rank #{simulatedRank}</span>
+                      {simulatedRank === 1 ? " (👑 The #1 Crown Spot!)" : ` (Beating ${Math.max(0, bids.length - simulatedRank + 1)} projects)`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Bid Chips */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickBidChip("top1")}
+                    className="px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-black transition-colors"
+                  >
+                    👑 Claim #1
+                  </button>
+                  {bids.length >= 3 && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickBidChip("top3")}
+                      className="px-2.5 py-1 rounded-md text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500 hover:text-black transition-colors"
+                    >
+                      Top 3
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickBidChip(50)}
+                    className="px-2 py-1 rounded-md text-xs font-semibold bg-[#162030] text-slate-300 hover:bg-[#202c42] transition-colors"
+                  >
+                    +$50
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickBidChip(100)}
+                    className="px-2 py-1 rounded-md text-xs font-semibold bg-[#162030] text-slate-300 hover:bg-[#202c42] transition-colors"
+                  >
+                    +$100
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickBidChip(500)}
+                    className="px-2 py-1 rounded-md text-xs font-semibold bg-[#162030] text-slate-300 hover:bg-[#202c42] transition-colors"
+                  >
+                    +$500
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Inputs */}
+              <form onSubmit={handlePlaceBid} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* URL / Handle Input */}
+                  <div className="md:col-span-2 relative">
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      GitHub Repo or Product URL
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        id="bid-url-input"
+                        type="text"
+                        required
+                        placeholder="e.g. astral-sh/uv or https://turborepo.org"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        className="w-full bg-[#080d15] border border-[#1f2b40] focus:border-amber-400 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition-all pr-10 font-mono"
+                      />
+                      {metaLoading && (
+                        <div className="absolute right-3 size-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bid Amount Input with Stepper */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Bid Amount ($ USD)
+                    </label>
+                    <div className="flex items-center bg-[#080d15] border border-[#1f2b40] focus-within:border-amber-400 rounded-xl px-2 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setBidAmount((v) => Math.max(1, v - 10))}
+                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] text-slate-300 font-bold text-sm flex items-center justify-center transition-colors"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(Math.max(1, Number(e.target.value)))}
+                        className="w-full bg-transparent text-center font-mono font-bold text-emerald-400 text-lg outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setBidAmount((v) => v + 10)}
+                        className="size-8 rounded-lg bg-[#141d2c] hover:bg-[#1f2c42] text-slate-300 font-bold text-sm flex items-center justify-center transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Auto-detected Metadata Card (if loaded) */}
+                {metaData && (
+                  <div className="p-3.5 rounded-xl bg-[#090e17] border border-[#1b263b] flex items-center justify-between gap-4 text-xs">
+                    <div className="flex items-center gap-3">
+                      {metaData.favicon && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={metaData.favicon}
+                          alt="icon"
+                          className="size-8 rounded-lg object-contain bg-black/40 border border-slate-700"
+                        />
+                      )}
+                      <div>
+                        <div className="font-bold text-white flex items-center gap-2">
+                          {metaData.name}
+                          {metaData.language && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#1a2538] text-sky-400 font-mono">
+                              {metaData.language}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-400 line-clamp-1">
+                          {metaData.description || "Auto-detected project metadata."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-slate-400 font-mono shrink-0">
+                      {metaData.stars ? (
+                        <span className="text-amber-400 flex items-center gap-1">
+                          <StarIcon className="size-3" />
+                          {fmtNum(metaData.stars)}
+                        </span>
+                      ) : null}
+                      <span className="text-emerald-400">✓ Auto Verified</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {error && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
+                    <span>{error}</span>
+                    <button type="button" onClick={() => setError(null)} className="text-rose-300 font-bold">
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Submit Action */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                  <span className="text-xs text-slate-500">
+                    Existing project? Re-enter URL to increase your bid and climb ranks.
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+                      submitted
+                        ? "bg-emerald-500 text-black shadow-emerald-500/25"
+                        : "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-black hover:brightness-110 shadow-amber-500/25"
+                    }`}
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="size-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        Saving to Database…
+                      </>
+                    ) : submitted ? (
+                      <>
+                        <CheckIcon className="size-4" />
+                        Bid Placed Successfully!
+                      </>
+                    ) : (
+                      <>
+                        <span>Outbid for {fmtMoney(bidAmount)}</span>
+                        <span className="text-xs opacity-75">→</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            {/* ── Leaderboard Roster & Filter Controls ─────────────────────── */}
+            <section className="space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
+                    Live Leaderboard
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-[#182335] text-slate-400 border border-[#24334b]">
+                      {filteredBids.length} Projects
+                    </span>
+                  </h3>
+                </div>
+
+                {/* Controls: Search, Language Filter, Sort & Refresh */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Sort Selector */}
+                  <div className="flex items-center gap-1 bg-[#0d141f] p-1 rounded-xl border border-[#1a2537]">
+                    <button
+                      onClick={() => setSortBy("rank")}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                        sortBy === "rank" ? "bg-[#223048] text-white" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Top Rank
+                    </button>
+                    <button
+                      onClick={() => setSortBy("clicks")}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                        sortBy === "clicks" ? "bg-[#223048] text-white" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Most Clicks
+                    </button>
+                    <button
+                      onClick={() => setSortBy("stars")}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                        sortBy === "stars" ? "bg-[#223048] text-white" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Stars
+                    </button>
+                  </div>
+
+                  {/* Language Pills */}
+                  {allLanguages.length > 1 && (
+                    <div className="flex items-center gap-1 bg-[#0d141f] p-1 rounded-xl border border-[#1a2537] overflow-x-auto max-w-xs">
+                      {allLanguages.slice(0, 5).map((lang) => (
+                        <button
+                          key={lang}
+                          onClick={() => setSelectedLanguage(lang)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                            selectedLanguage === lang
+                              ? "bg-[#223048] text-white"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Search Bar */}
+                  <input
+                    type="text"
+                    placeholder="Search projects…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-[#0d141f] border border-[#1a2537] rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400 w-36"
+                  />
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={async () => {
+                      setIsRefreshing(true);
+                      await fetchData();
+                      setIsRefreshing(false);
+                    }}
+                    disabled={isRefreshing}
+                    className="p-2 rounded-xl bg-[#0d141f] border border-[#1a2537] text-slate-400 hover:text-white transition-colors"
+                    title="Refresh database"
+                  >
+                    <svg
+                      className={`size-4 ${isRefreshing ? "animate-spin text-amber-400" : ""}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                      <path d="M21 21v-5h-5" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Roster Cards List */}
+              <div className="space-y-3">
+                {loading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-24 rounded-2xl bg-[#0c121c] border border-[#182335] animate-pulse"
                     />
                   ))
+                ) : filteredBids.length === 0 ? (
+                  <div className="p-12 text-center rounded-2xl bg-[#0b1018] border border-[#172233] text-slate-500 space-y-2">
+                    <div className="text-3xl">🚀</div>
+                    <div className="font-bold text-slate-300">No bids on the leaderboard yet</div>
+                    <p className="text-xs max-w-sm mx-auto">
+                      Be the very first project to place a bid and take the #1 Crown!
+                    </p>
+                  </div>
+                ) : (
+                  filteredBids.map((bid) => {
+                    const isTop1 = bid.rank === 1;
+                    const isTop2 = bid.rank === 2;
+                    const isTop3 = bid.rank === 3;
+
+                    return (
+                      <div
+                        key={bid.id}
+                        className={`group relative rounded-2xl p-4 md:p-5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer ${
+                          isTop1
+                            ? "bg-gradient-to-r from-amber-500/10 via-[#0e1522] to-[#0a0e16] border-2 border-amber-500/60 shadow-lg shadow-amber-500/10"
+                            : isTop2
+                            ? "bg-gradient-to-r from-slate-400/10 via-[#0e1522] to-[#0a0e16] border-2 border-slate-400/50"
+                            : isTop3
+                            ? "bg-gradient-to-r from-amber-700/10 via-[#0e1522] to-[#0a0e16] border-2 border-amber-700/40"
+                            : "bg-[#0b1018] hover:bg-[#101724] border border-[#172233] hover:border-[#273750]"
+                        }`}
+                        onClick={() => {
+                          handleCardClick(bid);
+                          window.open(bid.url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        {/* Left: Rank + Icon + Info */}
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          {/* Rank Badge */}
+                          <div
+                            className={`size-10 rounded-xl font-mono font-extrabold text-sm flex items-center justify-center shrink-0 ${
+                              isTop1
+                                ? "bg-amber-400 text-black shadow-md shadow-amber-400/30"
+                                : isTop2
+                                ? "bg-slate-300 text-black"
+                                : isTop3
+                                ? "bg-amber-700 text-white"
+                                : "bg-[#141c2b] text-slate-400 border border-[#223046]"
+                            }`}
+                          >
+                            #{bid.rank}
+                          </div>
+
+                          {/* Favicon */}
+                          <div className="size-11 rounded-xl bg-[#131b29] border border-[#202d44] p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
+                            {bid.favicon ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={bid.favicon}
+                                alt={bid.name}
+                                className="size-full object-contain"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                                }}
+                              />
+                            ) : (
+                              <span className="font-bold text-slate-400 text-sm">
+                                {bid.name.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Details */}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm md:text-base text-white group-hover:text-amber-400 transition-colors truncate">
+                                {bid.name}
+                              </span>
+                              {isTop1 && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-black">
+                                  👑 #1 Crown
+                                </span>
+                              )}
+                            </div>
+
+                            {bid.description && (
+                              <p className="text-xs text-slate-400 line-clamp-1 font-medium">
+                                {bid.description}
+                              </p>
+                            )}
+
+                            {/* Tags & Metadata */}
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-slate-500 pt-0.5">
+                              {bid.language && (
+                                <span className="inline-flex items-center gap-1 text-slate-400 font-sans">
+                                  <span
+                                    className="size-2 rounded-full"
+                                    style={{ backgroundColor: bid.langColor || "#38bdf8" }}
+                                  />
+                                  {bid.language}
+                                </span>
+                              )}
+                              {bid.stars > 0 && (
+                                <span className="text-amber-400/80 inline-flex items-center gap-1 font-sans">
+                                  <StarIcon className="size-3" />
+                                  {fmtNum(bid.stars)}
+                                </span>
+                              )}
+                              <span className="text-emerald-400/90 inline-flex items-center gap-1 font-sans">
+                                <span className="size-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                                {fmtNum(bid.clicks)} clicks
+                              </span>
+                              <span>{bid.timeAgo}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Amount & Quick Outbid Button */}
+                        <div
+                          className="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-[#182335]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="text-right">
+                            <div className="text-xs text-slate-500 font-mono">Current Bid</div>
+                            <div className="font-mono text-base md:text-lg font-bold text-emerald-400">
+                              {fmtMoney(bid.amount)}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleCardOutbid(bid)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#172338] hover:bg-amber-500 hover:text-black text-slate-200 border border-[#273854] hover:border-amber-400 transition-all active:scale-95"
+                          >
+                            Outbid ({fmtMoney(bid.amount + 1)})
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
-            </div>
+            </section>
           </>
         )}
 
-        {/* Footer */}
-        <footer
-          style={{
-            marginTop: 40,
-            paddingTop: 24,
-            borderTop: "1px solid #21262d",
-            fontSize: 12,
-            color: "#6e7681",
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <span>© 2025 bidopensource.lol</span>
-          {["Terms", "Privacy", "Security", "Status", "Docs"].map((l) => (
-            <a key={l} href="#" style={{ color: "#6e7681" }}>{l}</a>
-          ))}
-          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-            <OctocatIcon size={14} />
-            Powered by Drizzle & Next.js
-          </span>
-        </footer>
+        {/* TAB 2: LIVE ACTIVITY FEED */}
+        {activeTab === "activity" && (
+          <section className="rounded-2xl p-6 md:p-8 bg-[#0c111a] border border-[#1c273a] shadow-xl space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <FlameIcon className="size-6 text-orange-500" />
+                Live Auction Stream
+              </h2>
+              <p className="text-sm text-slate-400">
+                Real-time chronological audit trail of all bids, overtakes, and traffic milestones saved in the database.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {activities.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-mono text-xs">
+                  No activity recorded in the database yet. Place a bid to create the first event!
+                </div>
+              ) : (
+                activities.map((act) => (
+                  <div
+                    key={act.id}
+                    className="p-4 rounded-xl bg-[#080d16] border border-[#1b263b] flex items-start justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`size-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                          act.type === "dethrone"
+                            ? "bg-amber-400 text-black shadow-md shadow-amber-400/20"
+                            : act.type === "milestone"
+                            ? "bg-emerald-500 text-black"
+                            : "bg-[#182438] text-sky-400 border border-[#263752]"
+                        }`}
+                      >
+                        {act.type === "dethrone" ? "👑" : act.type === "milestone" ? "⚡" : "💰"}
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-sm text-white">{act.title}</div>
+                        {act.description && <div className="text-xs text-slate-400">{act.description}</div>}
+                      </div>
+                    </div>
+
+                    <div className="text-right font-mono text-xs text-slate-500 shrink-0">
+                      <span className="font-bold text-emerald-400">{fmtMoney(act.amount)}</span>
+                      <div>{act.timeAgo}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* TAB 3: ABOUT & VIRAL ECONOMICS */}
+        {activeTab === "about" && (
+          <section className="rounded-2xl p-6 md:p-8 bg-[#0c111a] border border-[#1c273a] shadow-xl space-y-6 text-slate-300 text-sm leading-relaxed">
+            <div className="space-y-2 border-b border-[#1c273a] pb-6">
+              <h2 className="text-2xl md:text-3xl font-black text-white">
+                What is bidopensource.lol?
+              </h2>
+              <p className="text-slate-400 text-base">
+                An open-source competitive leaderboard inspired by outbid.lol and Million Dollar Homepage, built to give developers, tools, and repositories uncensored visibility.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+              <div className="p-5 rounded-xl bg-[#080d16] border border-[#1a2538] space-y-2">
+                <div className="text-2xl font-bold text-amber-400">01. Pure Bidding</div>
+                <div className="font-bold text-white text-base">Ranked by Price</div>
+                <p className="text-xs text-slate-400">
+                  No hidden algorithms, paywalled SEO tricks, or editorial gatekeepers. Your bid amount purely decides your rank in the database.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#080d16] border border-[#1a2538] space-y-2">
+                <div className="text-2xl font-bold text-emerald-400">02. Live Organic Traffic</div>
+                <div className="font-bold text-white text-base">Real Click Delivery</div>
+                <p className="text-xs text-slate-400">
+                  Every rank links directly to your repo or landing page with verified referral tracking and click counters.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#080d16] border border-[#1a2538] space-y-2">
+                <div className="text-2xl font-bold text-sky-400">03. Perpetual Re-bidding</div>
+                <div className="font-bold text-white text-base">Fight for #1</div>
+                <p className="text-xs text-slate-400">
+                  If another project outbids you, you don&apos;t get removed—you simply drop down to the rank your current bid beats until you up your bid.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* TAB 4: RULES & FAIR PLAY */}
+        {activeTab === "rules" && (
+          <section className="rounded-2xl p-6 md:p-8 bg-[#0c111a] border border-[#1c273a] shadow-xl space-y-6 text-slate-300 text-sm">
+            <div className="space-y-2 border-b border-[#1c273a] pb-6">
+              <h2 className="text-2xl md:text-3xl font-black text-white">Board Rules & Guidelines</h2>
+              <p className="text-slate-400">
+                Simple rules to ensure bidopensource.lol remains an authentic, high-signal developer board.
+              </p>
+            </div>
+
+            <ul className="space-y-4 list-disc list-inside text-slate-300">
+              <li>
+                <strong className="text-white">Legitimate Projects Only:</strong> Submissions must be open source projects, developer tools, tech SaaS, or builder profiles.
+              </li>
+              <li>
+                <strong className="text-white">No Malicious Content:</strong> URLs linking to scams, malware, or phishing will be permanently removed with no refunds.
+              </li>
+              <li>
+                <strong className="text-white">Tie Breaking:</strong> If two bids have the exact same amount, the earlier bid retains the higher rank.
+              </li>
+              <li>
+                <strong className="text-white">Non-refundable:</strong> Bids represent immediate advertising placement and visibility and are non-refundable.
+              </li>
+            </ul>
+          </section>
+        )}
       </main>
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.4; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className="border-t border-[#182436] bg-[#080c14] py-8 text-xs text-slate-500">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span>© 2026 bidopensource.lol</span>
+            <span>·</span>
+            <span>Powered by Next.js 16 & Drizzle ORM Database</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button onClick={() => setActiveTab("leaderboard")} className="hover:text-slate-300">
+              Leaderboard
+            </button>
+            <button onClick={() => setActiveTab("about")} className="hover:text-slate-300">
+              About
+            </button>
+            <button onClick={() => setActiveTab("rules")} className="hover:text-slate-300">
+              Rules
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
-

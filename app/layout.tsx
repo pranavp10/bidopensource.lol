@@ -13,24 +13,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "outbid.lol – Outbid Your Competition",
+  title: "bidopensource.lol – The Open Source Auction Board & Leaderboard",
   description:
-    "No ads, no API keys, no revenue sharing. Just outbid your competition to get to the top. Will you take #1 when this site goes viral?",
+    "No ads, no algorithms, no gatekeepers. Outbid your competition to claim the #1 crown for your open source project or developer tool.",
   openGraph: {
-    title: "outbid.lol – Outbid Your Competition",
+    title: "bidopensource.lol – The Open Source Auction Board",
     description:
-      "No ads, no API keys, no revenue sharing. Just outbid your competition to get to the top.",
+      "Outbid your competition to claim the #1 crown for your open-source repo or developer tool.",
     type: "website",
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#090d13] text-[#e6edf3] font-sans selection:bg-amber-500/30 selection:text-amber-200">
+        {children}
+      </body>
     </html>
   );
 }

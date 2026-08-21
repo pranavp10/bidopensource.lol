@@ -4,29 +4,37 @@ import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
-  throw new Error(
-    "DATABASE_URL environment variable is not set.\n" +
-      "Add it to .env.local:\n" +
-      "  DATABASE_URL=postgresql://user:password@localhost:5432/outbid"
-  );
-}
-
 // Singleton: reuse across hot-reloads in Next.js dev
 const globalForDb = globalThis as unknown as {
   _pgClient: postgres.Sql | undefined;
 };
 
-const client =
-  globalForDb._pgClient ??
-  postgres(connectionString, {
-    max: 10,             // connection pool size
-    idle_timeout: 30,    // close idle connections after 30s
-    connect_timeout: 10, // fail fast if DB unreachable
-  });
+let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let isConnected = false;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb._pgClient = client;
+if (connectionString) {
+  try {
+    const client =
+      globalForDb._pgClient ??
+      postgres(connectionString, {
+        max: 10,             // connection pool size
+        idle_timeout: 30,    // close idle connections after 30s
+        connect_timeout: 5,  // fail fast if DB unreachable
+      });
+
+    if (process.env.NODE_ENV !== "production") {
+      globalForDb._pgClient = client;
+    }
+
+    dbInstance = drizzle(client, { schema });
+    isConnected = true;
+  } catch (err) {
+    console.warn("⚠️ Warning: Failed to connect to DATABASE_URL. Running in fallback memory mode.", err);
+  }
+} else {
+  console.info("ℹ️ DATABASE_URL not set in .env.local. Running in in-memory dev mode.");
 }
 
-export const db = drizzle(client, { schema });
+export const db = dbInstance;
+export const isDbConnected = isConnected;
+
