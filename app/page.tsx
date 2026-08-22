@@ -141,7 +141,7 @@ export default function Home() {
       if (data.stats) setStats(data.stats);
 
       if (loadedBids.length > 0) {
-        setBidAmount(loadedBids[0].amount + 1);
+        setBidAmount(Math.max(10, loadedBids[0].amount + 1));
       } else {
         setBidAmount(10);
       }
@@ -165,8 +165,9 @@ export default function Home() {
           setActivities(data.activities || []);
           if (data.stats) setStats(data.stats);
           if (loadedBids.length > 0) {
-            setBidAmount(loadedBids[0].amount + 1);
+            setBidAmount(Math.max(10, loadedBids[0].amount + 1));
           }
+
           if (typeof window !== "undefined") {
             const params = new URLSearchParams(window.location.search);
             const status = params.get("status");
@@ -190,8 +191,9 @@ export default function Home() {
                     if (verResult.bids) {
                       setBids(verResult.bids);
                       if (verResult.bids.length > 0) {
-                        setBidAmount(verResult.bids[0].amount + 1);
+                        setBidAmount(Math.max(10, verResult.bids[0].amount + 1));
                       }
+
                     }
                     if (verResult.activities) {
                       setActivities(verResult.activities);
@@ -263,13 +265,14 @@ export default function Home() {
   // ── Quick Bid Presets ─────────────────────────────────────────────────────
   function handleQuickBidChip(action: "top1" | "top3" | 50 | 100 | 500) {
     if (action === "top1") {
-      setBidAmount((topBid?.amount ?? 0) + 1);
+      setBidAmount(Math.max(10, (topBid?.amount ?? 0) + 1));
     } else if (action === "top3") {
-      setBidAmount((thirdBid?.amount ?? 50) + 1);
+      setBidAmount(Math.max(10, (thirdBid?.amount ?? 50) + 1));
     } else {
       setBidAmount((prev) => prev + action);
     }
   }
+
 
   // ── Submit Bid to Database ────────────────────────────────────────────────
   async function handlePlaceBid(e?: React.FormEvent) {
