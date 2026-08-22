@@ -392,7 +392,7 @@ export default function Home() {
         <div className="animate-marquee whitespace-nowrap flex items-center gap-12 font-mono">
           <span className="inline-flex items-center gap-2">
             <span className="size-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            <strong className="text-emerald-400">DATABASE SYNCED</strong> · {stats.totalProjects} Active Projects
+            <strong className="text-emerald-400">LIVE AUCTION ACTIVE</strong> · {stats.totalProjects} Active Projects
           </span>
           <span className="text-slate-400">
             👑 #1 Reigning: <strong className="text-amber-400">{topBid ? topBid.name : "None (Available)"}</strong> ({topBid ? fmtMoney(topBid.amount) : "$0"})
@@ -408,8 +408,9 @@ export default function Home() {
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="size-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            <strong className="text-emerald-400">DATABASE SYNCED</strong> · {stats.totalProjects} Active Projects
+            <strong className="text-emerald-400">LIVE AUCTION ACTIVE</strong> · {stats.totalProjects} Active Projects
           </span>
+
         </div>
       </div>
 
@@ -830,12 +831,12 @@ export default function Home() {
                     {submitting ? (
                       <>
                         <div className="size-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                        Saving to Database…
+                        <span>Redirecting to Checkout…</span>
                       </>
                     ) : submitted ? (
                       <>
                         <CheckIcon className="size-4" />
-                        Bid Placed Successfully!
+                        <span>Bid Placed Successfully!</span>
                       </>
                     ) : (
                       <>
@@ -843,6 +844,7 @@ export default function Home() {
                         <span className="text-xs opacity-75">→</span>
                       </>
                     )}
+
                   </button>
                 </div>
               </form>
@@ -1221,8 +1223,9 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <span>© 2026 bidopensource.lol</span>
             <span>·</span>
-            <span>Powered by Next.js 16 & Drizzle ORM Database</span>
+            <span>The Open Source Auction Board</span>
           </div>
+
 
           <div className="flex items-center gap-4">
             <button onClick={() => setActiveTab("leaderboard")} className="hover:text-slate-300">
